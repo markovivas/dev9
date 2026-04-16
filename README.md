@@ -1,6 +1,6 @@
 # Intranet Dashboard Base
 
-Tema base de WordPress criado para servir como ponto de partida de uma intranet corporativa sem dependencias de terceiros.
+Tema base de WordPress criado para servir como ponto de partida de uma intranet sem dependencias de terceiros.
 
 ## Estrutura inicial
 
