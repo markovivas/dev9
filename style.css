@@ -1,0 +1,21 @@
+/*
+Theme Name: Intranet Base
+Theme URI: https://dev9.com.br/
+Author: Marco Antonio Vivas
+Author URI: https://dev9.com.br/
+Description: Tema base de intranet corporativa com visual de dashboard, desenvolvido para extensao customizada sem dependencias de terceiros.
+Version: 0.1.0
+Requires at least: 6.0
+Tested up to: 6.6
+Requires PHP: 7.4
+Text Domain: intranet-dashboard-base
+*/
+
+/*
+ * Estilos principais em assets/css/main.css.
+ * Este arquivo mantem o cabecalho exigido pelo WordPress.
+ */
+
+body {
+    margin: 0;
+}
