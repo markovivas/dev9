@@ -255,7 +255,12 @@ function intranet_dashboard_base_render_document_metabox($post) {
 	?>
 	<p>
 		<label for="document_file_url"><strong><?php esc_html_e('Arquivo do documento', 'intranet-dashboard-base'); ?></strong></label><br>
-		<input id="document_file_url" name="document_file_url" type="url" value="<?php echo esc_attr($file_url); ?>" class="widefat" placeholder="<?php esc_attr_e('Cole a URL de um arquivo enviado na biblioteca de midia', 'intranet-dashboard-base'); ?>">
+		<input id="document_file_url" name="document_file_url" type="url" value="<?php echo esc_attr($file_url); ?>" class="widefat" placeholder="<?php esc_attr_e('URL do arquivo enviado ou hospedado externamente', 'intranet-dashboard-base'); ?>">
+	</p>
+	<p>
+		<label for="document_upload_file"><strong><?php esc_html_e('Enviar arquivo agora', 'intranet-dashboard-base'); ?></strong></label><br>
+		<input id="document_upload_file" name="document_upload_file" type="file" class="widefat">
+		<span class="description"><?php esc_html_e('Ao selecionar um arquivo e salvar o post, a URL acima sera atualizada automaticamente.', 'intranet-dashboard-base'); ?></span>
 	</p>
 	<p>
 		<label for="document_external_url"><strong><?php esc_html_e('Link alternativo', 'intranet-dashboard-base'); ?></strong></label><br>
@@ -273,6 +278,15 @@ function intranet_dashboard_base_render_document_metabox($post) {
 	</p>
 	<?php
 }
+
+function intranet_dashboard_base_document_edit_form_tag($post) {
+	if (! ($post instanceof WP_Post) || 'documento' !== $post->post_type) {
+		return;
+	}
+
+	echo ' enctype="multipart/form-data"';
+}
+add_action('post_edit_form_tag', 'intranet_dashboard_base_document_edit_form_tag');
 
 function intranet_dashboard_base_save_module_meta($post_id) {
 	if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
@@ -330,6 +344,40 @@ function intranet_dashboard_base_save_module_meta($post_id) {
 		$external_url = isset($_POST['document_external_url']) ? esc_url_raw(wp_unslash($_POST['document_external_url'])) : '';
 		$file_type    = isset($_POST['document_file_type']) ? sanitize_text_field(wp_unslash($_POST['document_file_type'])) : '';
 		$is_featured  = isset($_POST['document_featured']) ? '1' : '0';
+
+		if (
+			isset($_FILES['document_upload_file']) &&
+			isset($_FILES['document_upload_file']['name']) &&
+			'' !== $_FILES['document_upload_file']['name'] &&
+			isset($_FILES['document_upload_file']['error']) &&
+			UPLOAD_ERR_OK === (int) $_FILES['document_upload_file']['error']
+		) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+
+			$attachment_id = media_handle_upload('document_upload_file', $post_id);
+
+			if (! is_wp_error($attachment_id)) {
+				$uploaded_url = wp_get_attachment_url($attachment_id);
+
+				if ($uploaded_url) {
+					$file_url = $uploaded_url;
+				}
+
+				if ('' === $file_type) {
+					$attached_file = get_attached_file($attachment_id);
+
+					if ($attached_file) {
+						$extension = pathinfo($attached_file, PATHINFO_EXTENSION);
+
+						if ($extension) {
+							$file_type = strtoupper($extension);
+						}
+					}
+				}
+			}
+		}
 
 		update_post_meta($post_id, '_document_file_url', $file_url);
 		update_post_meta($post_id, '_document_external_url', $external_url);

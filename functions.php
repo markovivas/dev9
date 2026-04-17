@@ -240,6 +240,47 @@ function intranet_dashboard_base_user_can_access_admin($user = null) {
 	return current_user_can('manage_options');
 }
 
+function intranet_dashboard_base_is_document_upload_context() {
+	if (! is_user_logged_in() || ! intranet_dashboard_base_user_can_access_admin()) {
+		return false;
+	}
+
+	$post_id = 0;
+
+	if (isset($_REQUEST['post_id'])) {
+		$post_id = absint(wp_unslash($_REQUEST['post_id']));
+	}
+
+	if (! $post_id && isset($_REQUEST['post'])) {
+		$post_id = absint(wp_unslash($_REQUEST['post']));
+	}
+
+	if (! $post_id) {
+		return false;
+	}
+
+	return 'documento' === get_post_type($post_id);
+}
+
+function intranet_dashboard_base_allow_unfiltered_document_uploads($caps, $cap, $user_id, $args) {
+	if ('unfiltered_upload' !== $cap) {
+		return $caps;
+	}
+
+	$user = get_user_by('id', $user_id);
+
+	if (! ($user instanceof WP_User) || ! intranet_dashboard_base_user_can_access_admin($user)) {
+		return $caps;
+	}
+
+	if (! intranet_dashboard_base_is_document_upload_context()) {
+		return $caps;
+	}
+
+	return array('exist');
+}
+add_filter('map_meta_cap', 'intranet_dashboard_base_allow_unfiltered_document_uploads', 10, 4);
+
 function intranet_dashboard_base_restrict_admin_panel() {
 	if (! is_user_logged_in() || wp_doing_ajax()) {
 		return;
@@ -1032,4 +1073,4 @@ function intranet_dashboard_base_login_styles() {
 	</style>
 	<?php
 }
-add_action('login_enqueue_scripts', 'intranet_dashboard_base_login_styles');
+add_action('login_head', 'intranet_dashboard_base_login_styles');
