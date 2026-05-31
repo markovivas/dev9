@@ -1,3 +1,30 @@
+/*
+ * ====================================================================
+ * Intranet Base - Main Stylesheet
+ * ====================================================================
+ *
+ * Sections:
+ *   1. CSS Variables & Reset          (line 1)
+ *   2. Site Shell & Header            (line 60)
+ *   3. Navigation                     (line 246)
+ *   4. Dashboard Grid & Layout        (line 551)
+ *   5. Dashboard Cards                (line 572)
+ *   6. Profile Card                   (line 585)
+ *   7. Hero Card                      (line 657)
+ *   8. Quick Actions                  (line 688)
+ *   9. Widget Title                   (line 823)
+ *  10. Lists & Cards                  (line 831)
+ *  11. News Card                      (line 954)
+ *  12. Calendar                       (line 1022)
+ *  13. Events Page                    (line 1519)
+ *  14. News Archive                   (line 1561)
+ *  15. Profile Edit                   (line 1660)
+ *  16. Single Post                    (line 1900)
+ *  17. Footer                         (line 2147)
+ *  18. Media Queries                  (line 2210)
+ * ====================================================================
+ */
+
 :root {
     --bg: #eef3f6;
     --surface: #ffffff;

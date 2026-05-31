@@ -228,7 +228,7 @@ if ($hour_now < 12) {
 			<article class="dashboard-card weather-card">
 				<h2 class="widget-title"><?php esc_html_e('Previsao do tempo', 'intranet-dashboard-base'); ?></h2>
 				<?php if (! empty($weather_data['current'])) : ?>
-					<?php $current_weather_visual = intranet_dashboard_base_get_weather_visual_tokens($weather_data['current']['icon']); ?>
+					<?php $current_weather_visual = intranet_dashboard_base_get_weather_visual($weather_data['current']['icon'], 'clean'); ?>
 					<div class="weather-current weather-current--<?php echo esc_attr($current_weather_visual['slug']); ?>">
 						<div class="weather-current-main">
 							<span class="weather-current-icon" aria-hidden="true">
@@ -258,7 +258,7 @@ if ($hour_now < 12) {
 					<?php if (! empty($weather_data['forecast'])) : ?>
 						<ul class="weather-forecast-list">
 							<?php foreach ($weather_data['forecast'] as $forecast_day) : ?>
-								<?php $forecast_weather_visual = intranet_dashboard_base_get_weather_visual_tokens($forecast_day['icon']); ?>
+								<?php $forecast_weather_visual = intranet_dashboard_base_get_weather_visual($forecast_day['icon'], 'clean'); ?>
 								<li class="weather-forecast-item weather-forecast-item--<?php echo esc_attr($forecast_weather_visual['slug']); ?>">
 									<div class="weather-forecast-day">
 										<strong><?php echo esc_html($forecast_day['weekday']); ?></strong>

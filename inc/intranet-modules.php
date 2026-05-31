@@ -199,11 +199,27 @@ function intranet_dashboard_base_add_module_metaboxes() {
 }
 add_action('add_meta_boxes', 'intranet_dashboard_base_add_module_metaboxes');
 
+function intranet_dashboard_base_normalize_event_date($value) {
+	if (! $value) {
+		return '';
+	}
+
+	return str_replace('T', ' ', $value);
+}
+
+function intranet_dashboard_base_format_event_date_for_input($value) {
+	if (! $value) {
+		return '';
+	}
+
+	return str_replace(' ', 'T', $value);
+}
+
 function intranet_dashboard_base_render_event_metabox($post) {
 	wp_nonce_field('intranet_dashboard_base_save_event', 'intranet_dashboard_base_event_nonce');
 
-	$start_date = get_post_meta($post->ID, '_event_start_date', true);
-	$end_date   = get_post_meta($post->ID, '_event_end_date', true);
+	$start_date = intranet_dashboard_base_format_event_date_for_input(get_post_meta($post->ID, '_event_start_date', true));
+	$end_date   = intranet_dashboard_base_format_event_date_for_input(get_post_meta($post->ID, '_event_end_date', true));
 	$location   = get_post_meta($post->ID, '_event_location', true);
 	?>
 	<p>
@@ -304,8 +320,8 @@ function intranet_dashboard_base_save_module_meta($post_id) {
 			return;
 		}
 
-		$start_date = isset($_POST['event_start_date']) ? sanitize_text_field(wp_unslash($_POST['event_start_date'])) : '';
-		$end_date   = isset($_POST['event_end_date']) ? sanitize_text_field(wp_unslash($_POST['event_end_date'])) : '';
+		$start_date = isset($_POST['event_start_date']) ? intranet_dashboard_base_normalize_event_date(sanitize_text_field(wp_unslash($_POST['event_start_date']))) : '';
+		$end_date   = isset($_POST['event_end_date']) ? intranet_dashboard_base_normalize_event_date(sanitize_text_field(wp_unslash($_POST['event_end_date']))) : '';
 		$location   = isset($_POST['event_location']) ? sanitize_text_field(wp_unslash($_POST['event_location'])) : '';
 
 		update_post_meta($post_id, '_event_start_date', $start_date);
@@ -386,6 +402,47 @@ function intranet_dashboard_base_save_module_meta($post_id) {
 	}
 }
 add_action('save_post', 'intranet_dashboard_base_save_module_meta');
+
+function intranet_dashboard_base_is_document_upload_context() {
+	if (! is_user_logged_in() || ! current_user_can('manage_options')) {
+		return false;
+	}
+
+	$post_id = 0;
+
+	if (isset($_REQUEST['post_id'])) {
+		$post_id = absint(wp_unslash($_REQUEST['post_id']));
+	}
+
+	if (! $post_id && isset($_REQUEST['post'])) {
+		$post_id = absint(wp_unslash($_REQUEST['post']));
+	}
+
+	if (! $post_id) {
+		return false;
+	}
+
+	return 'documento' === get_post_type($post_id);
+}
+
+function intranet_dashboard_base_allow_unfiltered_document_uploads($caps, $cap, $user_id, $args) {
+	if ('unfiltered_upload' !== $cap) {
+		return $caps;
+	}
+
+	$user = get_user_by('id', $user_id);
+
+	if (! ($user instanceof WP_User) || ! user_can($user, 'manage_options')) {
+		return $caps;
+	}
+
+	if (! intranet_dashboard_base_is_document_upload_context()) {
+		return $caps;
+	}
+
+	return array('exist');
+}
+add_filter('map_meta_cap', 'intranet_dashboard_base_allow_unfiltered_document_uploads', 10, 4);
 
 function intranet_dashboard_base_register_user_fields($user) {
 	$job_title  = get_user_meta($user->ID, 'job_title', true);
@@ -487,11 +544,24 @@ function intranet_dashboard_base_get_birthdays_for_current_month($limit = 6) {
 }
 
 function intranet_dashboard_base_get_upcoming_events($limit = 5) {
+	$limit = absint($limit);
+
 	$query = new WP_Query(
 		array(
 			'post_type'      => 'evento',
-			'posts_per_page' => -1,
+			'posts_per_page' => $limit,
 			'post_status'    => 'publish',
+			'meta_key'       => '_event_start_date',
+			'orderby'        => 'meta_value',
+			'order'          => 'ASC',
+			'meta_query'     => array(
+				array(
+					'key'     => '_event_start_date',
+					'value'   => current_time('mysql'),
+					'compare' => '>=',
+					'type'    => 'DATETIME',
+				),
+			),
 		)
 	);
 
@@ -500,34 +570,27 @@ function intranet_dashboard_base_get_upcoming_events($limit = 5) {
 	if ($query->have_posts()) {
 		while ($query->have_posts()) {
 			$query->the_post();
-			$post_id    = get_the_ID();
-			$timestamp  = intranet_dashboard_base_get_event_start_timestamp($post_id);
+			$post_id   = get_the_ID();
+			$timestamp = intranet_dashboard_base_get_event_start_timestamp($post_id);
 
-			if (! $timestamp || $timestamp < current_time('timestamp')) {
+			if (! $timestamp) {
 				continue;
 			}
 
 			$events[] = array(
-				'post_id'    => $post_id,
-				'timestamp'  => $timestamp,
-				'title'      => get_the_title(),
-				'permalink'  => get_permalink(),
-				'location'   => intranet_dashboard_base_get_event_location($post_id),
-				'type_name'  => intranet_dashboard_base_get_event_type_name($post_id),
+				'post_id'   => $post_id,
+				'timestamp' => $timestamp,
+				'title'     => get_the_title(),
+				'permalink' => get_permalink(),
+				'location'  => intranet_dashboard_base_get_event_location($post_id),
+				'type_name' => intranet_dashboard_base_get_event_type_name($post_id),
 			);
 		}
 
 		wp_reset_postdata();
 	}
 
-	usort(
-		$events,
-		static function ($left, $right) {
-			return $left['timestamp'] <=> $right['timestamp'];
-		}
-	);
-
-	return array_slice($events, 0, absint($limit));
+	return $events;
 }
 
 function intranet_dashboard_base_get_event_start_timestamp($post_id) {
@@ -559,14 +622,15 @@ function intranet_dashboard_base_get_calendar_events($year, $month) {
 	$query = new WP_Query(
 		array(
 			'post_type'      => 'evento',
-			'posts_per_page' => -1,
+			'posts_per_page' => 200,
 			'post_status'    => 'publish',
+			'no_found_rows'  => true,
 			'meta_query'     => array(
 				array(
 					'key'     => '_event_start_date',
-					'value'   => array(str_replace(' ', 'T', $start_date), str_replace(' ', 'T', $end_date)),
+					'value'   => array($start_date, $end_date),
 					'compare' => 'BETWEEN',
-					'type'    => 'CHAR',
+					'type'    => 'DATETIME',
 				),
 			),
 		)
@@ -643,6 +707,119 @@ function intranet_dashboard_base_get_latest_announcements($limit = 4) {
 	);
 }
 
+function intranet_dashboard_base_documento_category_allowed_departments_add_fields($term) {
+	$allowed = get_term_meta($term->term_id, 'documento_categoria_allowed_departments', true);
+
+	if (! is_array($allowed)) {
+		$allowed = array();
+	}
+	?>
+	<tr class="form-field">
+		<th scope="row">
+			<label for="documento_allowed_departments"><?php esc_html_e('Departamentos permitidos', 'intranet-dashboard-base'); ?></label>
+		</th>
+		<td>
+			<select name="documento_allowed_departments[]" id="documento_allowed_departments" multiple style="width:100%;min-height:80px;">
+				<?php
+				$all_departments = intranet_dashboard_base_get_all_departments();
+				foreach ($all_departments as $dept) :
+					?>
+					<option value="<?php echo esc_attr($dept); ?>" <?php echo in_array($dept, $allowed, true) ? 'selected' : ''; ?>>
+						<?php echo esc_html($dept); ?>
+					</option>
+				<?php endforeach; ?>
+			</select>
+			<p class="description"><?php esc_html_e('Selecione os departamentos que podem acessar documentos desta categoria. Deixe vazio para liberar para todos.', 'intranet-dashboard-base'); ?></p>
+		</td>
+	</tr>
+	<?php
+}
+add_action('documento_categoria_edit_form_fields', 'intranet_dashboard_base_documento_category_allowed_departments_add_fields', 10, 1);
+add_action('documento_categoria_add_form_fields', 'intranet_dashboard_base_documento_category_allowed_departments_add_fields', 10, 1);
+
+function intranet_dashboard_base_documento_category_allowed_departments_save($term_id) {
+	if (! isset($_POST['documento_allowed_departments'])) {
+		delete_term_meta($term_id, 'documento_categoria_allowed_departments');
+		return;
+	}
+
+	$allowed = array_map('sanitize_text_field', wp_unslash($_POST['documento_allowed_departments']));
+	update_term_meta($term_id, 'documento_categoria_allowed_departments', $allowed);
+}
+add_action('edited_documento_categoria', 'intranet_dashboard_base_documento_category_allowed_departments_save', 10, 1);
+add_action('created_documento_categoria', 'intranet_dashboard_base_documento_category_allowed_departments_save', 10, 1);
+
+function intranet_dashboard_base_get_all_departments() {
+	global $wpdb;
+
+	$departments = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT DISTINCT meta_value FROM {$wpdb->usermeta} WHERE meta_key = %s AND meta_value != '' ORDER BY meta_value ASC",
+			'department'
+		)
+	);
+
+	return $departments ? $departments : array();
+}
+
+function intranet_dashboard_base_restrict_document_access($query) {
+	if (! ($query instanceof WP_Query) || is_admin() || ! $query->is_main_query()) {
+		return;
+	}
+
+	if ('documento' !== $query->get('post_type') && ! in_array('documento', (array) $query->get('post_type'), true)) {
+		return;
+	}
+
+	$user_id = get_current_user_id();
+
+	if (! $user_id || user_can($user_id, 'manage_options')) {
+		return;
+	}
+
+	$user_department = get_user_meta($user_id, 'department', true);
+
+	if (! $user_department) {
+		$query->set('post__in', array(0));
+		return;
+	}
+
+	$allowed_terms = get_terms(
+		array(
+			'taxonomy'   => 'documento_categoria',
+			'hide_empty' => false,
+			'meta_query' => array(
+				'relation' => 'OR',
+				array(
+					'key'     => 'documento_categoria_allowed_departments',
+					'compare' => 'NOT EXISTS',
+				),
+				array(
+					'key'   => 'documento_categoria_allowed_departments',
+					'value' => $user_department,
+				),
+			),
+		)
+	);
+
+	if (is_wp_error($allowed_terms) || empty($allowed_terms)) {
+		$query->set('post__in', array(0));
+		return;
+	}
+
+	$allowed_term_ids = wp_list_pluck($allowed_terms, 'term_id');
+	$existing_tax_query = $query->get('tax_query', array());
+
+	$existing_tax_query[] = array(
+		'taxonomy' => 'documento_categoria',
+		'field'    => 'term_id',
+		'terms'    => $allowed_term_ids,
+	);
+
+	$query->set('tax_query', $existing_tax_query);
+}
+add_action('pre_get_posts', 'intranet_dashboard_base_restrict_document_access');
+
 function intranet_dashboard_base_get_featured_documents($limit = 5) {
 	return new WP_Query(
 		array(
@@ -663,17 +840,3 @@ function intranet_dashboard_base_get_featured_documents($limit = 5) {
 	);
 }
 
-function intranet_dashboard_base_get_document_url($post_id) {
-	$file_url     = get_post_meta($post_id, '_document_file_url', true);
-	$external_url = get_post_meta($post_id, '_document_external_url', true);
-
-	if ($file_url) {
-		return $file_url;
-	}
-
-	if ($external_url) {
-		return $external_url;
-	}
-
-	return get_permalink($post_id);
-}
